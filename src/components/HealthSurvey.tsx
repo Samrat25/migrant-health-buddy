@@ -91,6 +91,16 @@ export default function HealthSurvey({ onComplete, onBack }: HealthSurveyProps) 
   };
 
   const handleSubmit = () => {
+    // Validate required fields
+    if (!surveyData.personalInfo.age || !surveyData.personalInfo.gender) {
+      toast({
+        title: "Incomplete Information",
+        description: "Please fill in all required personal information fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Save to localStorage
     const timestamp = new Date().toISOString();
     const surveyWithTimestamp = { ...surveyData, timestamp, id: Date.now() };

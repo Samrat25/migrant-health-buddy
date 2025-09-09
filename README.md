@@ -1,73 +1,208 @@
-# Welcome to your Lovable project
+# Migrant Health Buddy - Comprehensive Health Management System
 
-## Project info
+A comprehensive health management system designed specifically for migrant workers, featuring AI-driven health analysis, biometric verification, and health camp management.
 
-**URL**: https://lovable.dev/projects/10e1acac-082a-41d6-bed3-6558a1f435b8
+## 🚀 Features
 
-## How can I edit this code?
+### Patient Portal
+- **Aadhaar-based Authentication**: Secure login using Aadhaar number and mobile verification
+- **Comprehensive Health Survey**: Multi-step health assessment covering:
+  - Personal information (age, gender, occupation, location)
+  - Current symptoms tracking
+  - Exposure history (travel, crowded places, sick contacts)
+  - Medical history (chronic diseases, medications, allergies)
+- **Report Upload System**: Upload blood reports, X-rays, and medical documents
+- **AI-Driven Health Analysis**: 
+  - Risk assessment based on survey and reports
+  - Automated report analysis
+  - Personalized health recommendations
+  - Risk level classification (Low/Medium/High)
+- **Pre-Diagnosis System**: Preliminary health assessment with urgency levels
+- **Sustainable Health Goals**: Personalized health goals with progress tracking
+- **Health Camp Booking**: Find and book nearby health camps
+- **Progress Dashboard**: Real-time health journey tracking
 
-There are several ways of editing your application.
+### Doctor Portal
+- **Doctor Registration**: Complete registration with unique medical register ID
+- **Patient Management**: View and manage patient assessments
+- **Risk-based Patient Sorting**: Filter patients by risk levels
+- **Prescription Management**: Create and send prescriptions
+- **WhatsApp Integration**: Send prescriptions directly to patients
+- **Health Camp Scheduling**: Schedule and manage health camps
 
-**Use Lovable**
+### Admin Portal
+- **Biometric Verification**: Advanced biometric authentication for user verification
+- **Manual Approval System**: Approve/reject doctors and patients
+- **Health Camp Management**: Create, manage, and monitor health camps
+- **Real-time Analytics**: System usage and health insights
+- **User Verification**: Comprehensive verification workflow
+- **Camp Mapping**: Geographic location management for health camps
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/10e1acac-082a-41d6-bed3-6558a1f435b8) and start prompting.
+## 🛠️ Technical Implementation
 
-Changes made via Lovable will be committed automatically to this repo.
+### Local Storage Integration
+- **Comprehensive Data Management**: All data persisted in browser localStorage
+- **Patient Data**: Complete patient profiles with health assessments
+- **Doctor Data**: Doctor registrations with verification status
+- **Health Camps**: Camp information with booking management
+- **Analyses**: AI-generated health analyses with recommendations
+- **Bookings**: Patient camp bookings and management
 
-**Use your preferred IDE**
+### Data Models
+```typescript
+interface PatientData {
+  id: string;
+  aadhaarNumber: string;
+  mobileNumber: string;
+  personalInfo: PersonalInfo;
+  surveyData?: SurveyData;
+  reports?: MedicalReport[];
+  analysis?: HealthAnalysis;
+  healthGoals?: HealthGoal[];
+  bookings?: Booking[];
+}
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+interface DoctorData {
+  id: string;
+  registerId: string;
+  fullName: string;
+  licenseNumber: string;
+  specialization: string;
+  status: 'pending-verification' | 'verified' | 'rejected';
+  // ... other fields
+}
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+interface HealthCampData {
+  id: string;
+  name: string;
+  location: { lat: number; lng: number };
+  capacity: number;
+  booked: number;
+  specializations: string[];
+  // ... other fields
+}
 ```
 
-**Edit a file directly in GitHub**
+### AI Analysis Engine
+- **Risk Scoring Algorithm**: Calculates health risk based on multiple factors
+- **Report Analysis**: Automated analysis of blood reports and medical documents
+- **Recommendation Engine**: Personalized health recommendations
+- **Goal Generation**: Creates sustainable health goals based on analysis
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 🎯 Key Workflows
 
-**Use GitHub Codespaces**
+### Patient Health Journey
+1. **Login**: Aadhaar + Mobile verification
+2. **Health Survey**: Complete comprehensive health assessment
+3. **Report Upload**: Upload medical reports and documents
+4. **AI Analysis**: Automated health analysis and risk assessment
+5. **Pre-Diagnosis**: Preliminary health assessment
+6. **Health Goals**: Set and track sustainable health goals
+7. **Camp Booking**: Find and book nearby health camps
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Doctor Registration & Verification
+1. **Registration**: Complete doctor profile with documents
+2. **Admin Review**: Manual verification by admin
+3. **Biometric Verification**: Optional biometric authentication
+4. **Approval**: Admin approval/rejection
+5. **Patient Access**: Access to patient data and management
 
-## What technologies are used for this project?
+### Health Camp Management
+1. **Camp Creation**: Admin creates health camps with location mapping
+2. **Camp Listing**: Patients can view and book camps
+3. **Booking Management**: Track bookings and capacity
+4. **Camp Analytics**: Monitor camp performance and usage
 
-This project is built with:
+## 🔧 Installation & Setup
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```bash
+# Clone the repository
+git clone <repository-url>
+cd migrant-health-buddy
 
-## How can I deploy this project?
+# Install dependencies
+npm install
 
-Simply open [Lovable](https://lovable.dev/projects/10e1acac-082a-41d6-bed3-6558a1f435b8) and click on Share -> Publish.
+# Start development server
+npm run dev
 
-## Can I connect a custom domain to my Lovable project?
+# Build for production
+npm run build
+```
 
-Yes, you can!
+## 📱 Usage
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### For Patients
+1. Navigate to Patient Portal
+2. Enter Aadhaar number and mobile number
+3. Complete health survey
+4. Upload medical reports
+5. View AI analysis and recommendations
+6. Set health goals
+7. Book health camps
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### For Doctors
+1. Navigate to Doctor Portal
+2. Complete registration with medical credentials
+3. Wait for admin verification
+4. Access patient data and assessments
+5. Manage prescriptions and consultations
+
+### For Admins
+1. Navigate to Admin Portal
+2. Verify doctors and patients
+3. Create and manage health camps
+4. Monitor system analytics
+5. Perform biometric verifications
+
+## 🔒 Security Features
+
+- **Aadhaar Verification**: Secure patient identification
+- **Biometric Authentication**: Advanced biometric verification
+- **Data Encryption**: All sensitive data encrypted in localStorage
+- **Role-based Access**: Different access levels for patients, doctors, and admins
+- **Audit Trail**: Complete tracking of all user actions
+
+## 📊 Analytics & Reporting
+
+- **Real-time Dashboard**: Live system statistics
+- **Health Insights**: Population health analytics
+- **Risk Distribution**: Risk level analysis across patients
+- **Camp Performance**: Health camp utilization metrics
+- **User Engagement**: System usage analytics
+
+## 🎨 UI/UX Features
+
+- **Responsive Design**: Works on all device sizes
+- **Modern Interface**: Clean, intuitive design
+- **Progress Tracking**: Visual progress indicators
+- **Real-time Updates**: Live data updates
+- **Accessibility**: WCAG compliant interface
+
+## 🚀 Future Enhancements
+
+- **Mobile App**: Native mobile applications
+- **Telemedicine**: Video consultation features
+- **Blockchain**: Secure health record management
+- **Machine Learning**: Advanced health prediction models
+- **Integration**: API integration with healthcare systems
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## 📞 Support
+
+For support and questions, please contact the development team or create an issue in the repository.
+
+---
+
+**Migrant Health Buddy** - Empowering migrant workers with accessible healthcare through technology.

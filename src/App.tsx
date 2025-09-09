@@ -8,6 +8,7 @@ import PatientPortal from "./pages/PatientPortal";
 import DoctorPortal from "./pages/DoctorPortal";
 import AdminPortal from "./pages/AdminPortal";
 import NotFound from "./pages/NotFound";
+import "./lib/demoData"; // Auto-seed demo data
 
 const queryClient = new QueryClient();
 

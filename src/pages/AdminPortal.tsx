@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 import HealthCampCreation from "@/components/HealthCampCreation";
 import BiometricVerification from "@/components/BiometricVerification";
+import { storage, DoctorData, PatientData, HealthCampData, VerificationData } from "@/lib/storage";
 import { 
   UserCheck, 
   MapPin, 
@@ -17,57 +19,151 @@ import {
   Shield,
   Activity,
   ArrowLeft,
-  Heart
+  Heart,
+  CheckCircle,
+  XCircle
 } from "lucide-react";
 
 export default function AdminPortal() {
   const [currentView, setCurrentView] = useState("main");
   const [searchTerm, setSearchTerm] = useState("");
+  const [healthCamps, setHealthCamps] = useState<HealthCampData[]>([]);
+  const [pendingVerifications, setPendingVerifications] = useState<any[]>([]);
+  const [patients, setPatients] = useState<PatientData[]>([]);
+  const [doctors, setDoctors] = useState<DoctorData[]>([]);
+  const { toast } = useToast();
 
-  const healthCamps = [
-    {
-      id: 1,
-      name: "Central Health Camp",
-      location: "Mumbai, Maharashtra", 
-      date: "2024-01-20",
-      capacity: 50,
-      booked: 32,
-      status: "active"
-    },
-    {
-      id: 2,
-      name: "North Zone Camp",
-      location: "Delhi NCR",
-      date: "2024-01-25", 
-      capacity: 75,
-      booked: 45,
-      status: "active"
-    }
-  ];
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const pendingVerifications = [
-    {
-      id: 1,
-      name: "Dr. Amit Patel",
-      type: "doctor",
-      license: "MH-12345",
-      submitted: "2024-01-15"
-    },
-    {
-      id: 2,
-      name: "Sunita Devi",
-      type: "patient", 
-      aadhaar: "****-****-1234",
-      submitted: "2024-01-16"
+  const loadData = () => {
+    setHealthCamps(storage.getHealthCamps());
+    setPatients(storage.getPatients());
+    setDoctors(storage.getDoctors());
+    
+    // Create pending verifications from doctors and patients
+    const pendingDocs = storage.getDoctors().filter(d => d.status === 'pending-verification');
+    const pendingPatients = storage.getPatients().filter(p => !p.personalInfo.name);
+    
+    const verifications = [
+      ...pendingDocs.map(doc => ({
+        id: doc.id,
+        name: doc.fullName,
+        type: "doctor",
+        license: doc.registerId,
+        submitted: doc.registrationDate,
+        status: doc.status
+      })),
+      ...pendingPatients.map(patient => ({
+        id: patient.id,
+        name: patient.personalInfo.name || 'Unknown',
+        type: "patient",
+        aadhaar: patient.aadhaarNumber.slice(0, 4) + '-****-' + patient.aadhaarNumber.slice(-4),
+        submitted: patient.createdAt,
+        status: 'pending'
+      }))
+    ];
+    
+    setPendingVerifications(verifications);
+  };
+
+  const handleCampCreation = (campData: HealthCampData) => {
+    storage.saveHealthCamp(campData);
+    loadData();
+    setCurrentView("main");
+    
+    toast({
+      title: "Health Camp Created",
+      description: `${campData.name} has been created successfully.`,
+    });
+  };
+
+  const handleVerificationComplete = () => {
+    loadData();
+    setCurrentView("main");
+  };
+
+  const approveUser = (userId: string, userType: 'doctor' | 'patient') => {
+    if (userType === 'doctor') {
+      const success = storage.updateDoctorStatus(userId, 'verified', 'admin');
+      if (success) {
+        toast({
+          title: "Doctor Approved",
+          description: "Doctor has been verified and can now access the system.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to approve doctor. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } else if (userType === 'patient') {
+      // For patients, we'll mark them as verified by updating their personal info
+      const patient = storage.getPatient(userId);
+      if (patient) {
+        storage.updatePatient(userId, { 
+          personalInfo: { 
+            ...patient.personalInfo, 
+            name: patient.personalInfo.name || 'Verified Patient',
+            verified: true 
+          } 
+        });
+        toast({
+          title: "Patient Approved",
+          description: "Patient has been verified and can access the system.",
+        });
+      }
     }
-  ];
+    
+    loadData();
+  };
+
+  const rejectUser = (userId: string, userType: 'doctor' | 'patient') => {
+    if (userType === 'doctor') {
+      const success = storage.updateDoctorStatus(userId, 'rejected', 'admin');
+      if (success) {
+        toast({
+          title: "Doctor Rejected",
+          description: "Doctor registration has been rejected.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to reject doctor. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } else if (userType === 'patient') {
+      // For patients, we can mark them as rejected
+      const patient = storage.getPatient(userId);
+      if (patient) {
+        storage.updatePatient(userId, { 
+          personalInfo: { 
+            ...patient.personalInfo, 
+            verified: false,
+            rejectionReason: 'Admin rejection'
+          } 
+        });
+        toast({
+          title: "Patient Rejected",
+          description: "Patient access has been rejected.",
+          variant: "destructive",
+        });
+      }
+    }
+    
+    loadData();
+  };
 
   if (currentView === "createCamp") {
-    return <HealthCampCreation onComplete={() => setCurrentView("main")} onBack={() => setCurrentView("main")} />;
+    return <HealthCampCreation onComplete={handleCampCreation} onBack={() => setCurrentView("main")} />;
   }
 
   if (currentView === "verification") {
-    return <BiometricVerification onComplete={() => setCurrentView("main")} onBack={() => setCurrentView("main")} />;
+    return <BiometricVerification onComplete={handleVerificationComplete} onBack={() => setCurrentView("main")} />;
   }
 
   return (
@@ -93,19 +189,23 @@ export default function AdminPortal() {
         {/* Stats Overview */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card className="text-center p-4">
-            <div className="text-2xl font-bold text-primary">1,247</div>
+            <div className="text-2xl font-bold text-primary">{patients.length}</div>
             <div className="text-sm text-muted-foreground">Total Patients</div>
           </Card>
           <Card className="text-center p-4">
-            <div className="text-2xl font-bold text-secondary">89</div>
+            <div className="text-2xl font-bold text-secondary">
+              {doctors.filter(d => d.status === 'verified').length}
+            </div>
             <div className="text-sm text-muted-foreground">Verified Doctors</div>
           </Card>
           <Card className="text-center p-4">
-            <div className="text-2xl font-bold text-success">24</div>
+            <div className="text-2xl font-bold text-success">
+              {healthCamps.filter(c => c.status === 'active').length}
+            </div>
             <div className="text-sm text-muted-foreground">Active Health Camps</div>
           </Card>
           <Card className="text-center p-4">
-            <div className="text-2xl font-bold text-warning">12</div>
+            <div className="text-2xl font-bold text-warning">{pendingVerifications.length}</div>
             <div className="text-sm text-muted-foreground">Pending Verifications</div>
           </Card>
         </div>
@@ -205,10 +305,20 @@ export default function AdminPortal() {
                         Submitted: {item.submitted}
                       </p>
                       <div className="flex items-center space-x-2">
-                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90">
+                        <Button 
+                          size="sm" 
+                          className="bg-success text-success-foreground hover:bg-success/90"
+                          onClick={() => approveUser(item.id, item.type)}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
                           Approve
                         </Button>
-                        <Button size="sm" variant="destructive">
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={() => rejectUser(item.id, item.type)}
+                        >
+                          <XCircle className="h-4 w-4 mr-1" />
                           Reject
                         </Button>
                         <Button size="sm" variant="outline">
@@ -234,20 +344,20 @@ export default function AdminPortal() {
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex justify-between">
-                      <span>Daily Active Users:</span>
-                      <span className="font-semibold">892</span>
+                      <span>Total Users:</span>
+                      <span className="font-semibold">{patients.length + doctors.length}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Health Assessments:</span>
-                      <span className="font-semibold">156</span>
+                      <span className="font-semibold">{patients.filter(p => p.surveyData).length}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Reports Analyzed:</span>
-                      <span className="font-semibold">89</span>
+                      <span className="font-semibold">{patients.filter(p => p.reports && p.reports.length > 0).length}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Prescriptions Sent:</span>
-                      <span className="font-semibold">124</span>
+                      <span>AI Analyses:</span>
+                      <span className="font-semibold">{patients.filter(p => p.analysis).length}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -264,19 +374,29 @@ export default function AdminPortal() {
                   <div className="space-y-4">
                     <div className="flex justify-between">
                       <span>High Risk Cases:</span>
-                      <span className="font-semibold text-destructive">23</span>
+                      <span className="font-semibold text-destructive">
+                        {patients.filter(p => p.analysis?.riskLevel === 'high').length}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Medium Risk:</span>
-                      <span className="font-semibold text-warning">87</span>
+                      <span className="font-semibold text-warning">
+                        {patients.filter(p => p.analysis?.riskLevel === 'medium').length}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Low Risk:</span>
-                      <span className="font-semibold text-success">156</span>
+                      <span className="font-semibold text-success">
+                        {patients.filter(p => p.analysis?.riskLevel === 'low').length}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Avg. Health Score:</span>
-                      <span className="font-semibold">78%</span>
+                      <span className="font-semibold">
+                        {patients.filter(p => p.analysis).length > 0 
+                          ? Math.round(patients.filter(p => p.analysis).reduce((sum, p) => sum + (100 - p.analysis.riskScore), 0) / patients.filter(p => p.analysis).length)
+                          : 0}%
+                      </span>
                     </div>
                   </div>
                 </CardContent>

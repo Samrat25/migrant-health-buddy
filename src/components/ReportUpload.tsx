@@ -66,7 +66,12 @@ export default function ReportUpload({ onComplete, onBack }: ReportUploadProps) 
 
     // Save to localStorage
     const existingReports = JSON.parse(localStorage.getItem('medicalReports') || '[]');
-    localStorage.setItem('medicalReports', JSON.stringify([...existingReports, ...reports]));
+    const newReports = reports.map(report => ({
+      ...report,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      uploadDate: new Date().toISOString()
+    }));
+    localStorage.setItem('medicalReports', JSON.stringify([...existingReports, ...newReports]));
 
     setUploading(false);
     

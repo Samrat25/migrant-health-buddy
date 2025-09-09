@@ -96,13 +96,27 @@ export default function AIAnalysis({ surveyData, reports, onComplete, onBack }: 
 
     // Analyze reports
     const reportFindings = [];
+    const detailedAnalysis = [];
     reportData.forEach(report => {
       if (report.content.type === 'Blood Test') {
         const bloodAnalysis = analyzeBloodReport(report.content);
         reportFindings.push(...bloodAnalysis);
+        detailedAnalysis.push({
+          type: 'Blood Test',
+          findings: bloodAnalysis,
+          values: report.content.values,
+          normalRanges: report.content.normalRanges
+        });
         if (bloodAnalysis.some(finding => finding.includes('abnormal'))) {
           riskScore += 25;
         }
+      } else if (report.content.type === 'X-Ray') {
+        reportFindings.push(`X-Ray: ${report.content.findings}`);
+        detailedAnalysis.push({
+          type: 'X-Ray',
+          findings: report.content.findings,
+          impression: report.content.impression
+        });
       }
     });
 
@@ -123,16 +137,22 @@ export default function AIAnalysis({ surveyData, reports, onComplete, onBack }: 
     // Generate health goals
     const healthGoals = generateHealthGoals(survey, riskLevel);
 
+    // Generate detailed insights
+    const insights = generateDetailedInsights(survey, reportData, riskLevel);
+
     return {
       riskLevel,
       riskColor,
       riskScore,
       riskFactors,
       reportFindings,
+      detailedAnalysis,
+      insights,
       recommendations,
       healthGoals,
       summary: generateSummary(riskLevel, survey, reportData),
-      nextSteps: generateNextSteps(riskLevel)
+      nextSteps: generateNextSteps(riskLevel),
+      preDiagnosis: generatePreDiagnosis(riskLevel, survey, reportData)
     };
   };
 
@@ -314,6 +334,85 @@ export default function AIAnalysis({ surveyData, reports, onComplete, onBack }: 
       </div>
     );
   }
+
+  const generateDetailedInsights = (survey: any, reportData: any[], riskLevel: string) => {
+    const insights = [];
+    
+    // Symptom analysis
+    if (survey.symptoms.length > 0) {
+      insights.push({
+        category: "Symptom Analysis",
+        findings: survey.symptoms.map(symptom => ({
+          symptom,
+          severity: "moderate",
+          recommendation: "Monitor closely"
+        }))
+      });
+    }
+    
+    // Risk factor analysis
+    const riskFactors = [];
+    if (survey.exposure.travelHistory === 'yes') riskFactors.push('Travel exposure');
+    if (survey.exposure.crowdedPlaces === 'yes') riskFactors.push('Crowded place exposure');
+    if (survey.exposure.sickContact === 'yes') riskFactors.push('Sick contact exposure');
+    
+    if (riskFactors.length > 0) {
+      insights.push({
+        category: "Exposure Risk",
+        findings: riskFactors.map(factor => ({
+          factor,
+          riskLevel: "medium",
+          mitigation: "Self-monitoring recommended"
+        }))
+      });
+    }
+    
+    // Chronic condition analysis
+    if (survey.healthHistory.chronicDiseases.length > 0) {
+      insights.push({
+        category: "Chronic Conditions",
+        findings: survey.healthHistory.chronicDiseases.map(disease => ({
+          condition: disease,
+          management: "Regular monitoring required",
+          priority: "high"
+        }))
+      });
+    }
+    
+    return insights;
+  };
+
+  const generatePreDiagnosis = (riskLevel: string, survey: any, reportData: any[]) => {
+    const diagnoses = [];
+    
+    if (riskLevel === 'high') {
+      diagnoses.push({
+        condition: "Acute Respiratory Infection",
+        probability: "75%",
+        urgency: "High",
+        symptoms: survey.symptoms,
+        recommendation: "Immediate medical attention required"
+      });
+    } else if (riskLevel === 'medium') {
+      diagnoses.push({
+        condition: "Mild Respiratory Symptoms",
+        probability: "60%",
+        urgency: "Medium",
+        symptoms: survey.symptoms,
+        recommendation: "Monitor symptoms and consult if worsening"
+      });
+    } else {
+      diagnoses.push({
+        condition: "General Health Assessment",
+        probability: "40%",
+        urgency: "Low",
+        symptoms: survey.symptoms,
+        recommendation: "Continue monitoring and maintain good health practices"
+      });
+    }
+    
+    return diagnoses;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background p-4">

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import HealthCampCreation from "@/components/HealthCampCreation";
+import BiometricVerification from "@/components/BiometricVerification";
 import { 
   UserCheck, 
   MapPin, 
@@ -19,6 +21,7 @@ import {
 } from "lucide-react";
 
 export default function AdminPortal() {
+  const [currentView, setCurrentView] = useState("main");
   const [searchTerm, setSearchTerm] = useState("");
 
   const healthCamps = [
@@ -58,6 +61,14 @@ export default function AdminPortal() {
       submitted: "2024-01-16"
     }
   ];
+
+  if (currentView === "createCamp") {
+    return <HealthCampCreation onComplete={() => setCurrentView("main")} onBack={() => setCurrentView("main")} />;
+  }
+
+  if (currentView === "verification") {
+    return <BiometricVerification onComplete={() => setCurrentView("main")} onBack={() => setCurrentView("main")} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
@@ -119,7 +130,7 @@ export default function AdminPortal() {
                       Create and manage health camps across different locations
                     </CardDescription>
                   </div>
-                  <Button>
+                  <Button onClick={() => setCurrentView("createCamp")}>
                     <Plus className="h-4 w-4 mr-2" />
                     Create New Camp
                   </Button>

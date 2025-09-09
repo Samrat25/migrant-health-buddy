@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import DoctorRegistration from "@/components/DoctorRegistration";
 import { 
   Stethoscope, 
   Users, 
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 
 export default function DoctorPortal() {
+  const [currentView, setCurrentView] = useState("main");
   const [searchTerm, setSearchTerm] = useState("");
 
   const patients = [
@@ -63,6 +65,10 @@ export default function DoctorPortal() {
       default: return "bg-muted text-muted-foreground";
     }
   };
+
+  if (currentView === "register") {
+    return <DoctorRegistration onComplete={() => setCurrentView("main")} onBack={() => setCurrentView("main")} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">

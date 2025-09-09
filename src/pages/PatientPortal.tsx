@@ -13,11 +13,19 @@ import {
   ArrowLeft,
   Heart
 } from "lucide-react";
+import HealthSurvey from "@/components/HealthSurvey";
+import ReportUpload from "@/components/ReportUpload";
+import AIAnalysis from "@/components/AIAnalysis";
+import HealthGoals from "@/components/HealthGoals";
+import NearbyHealthCamps from "@/components/NearbyHealthCamps";
 
 export default function PatientPortal() {
   const [currentStep, setCurrentStep] = useState("login");
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
+  const [surveyData, setSurveyData] = useState(null);
+  const [reports, setReports] = useState([]);
+  const [analysis, setAnalysis] = useState(null);
 
   const handleLogin = () => {
     if (aadhaarNumber && mobileNumber) {
@@ -77,6 +85,26 @@ export default function PatientPortal() {
     );
   }
 
+  if (currentStep === "survey") {
+    return <HealthSurvey onComplete={(data) => { setSurveyData(data); setCurrentStep("upload"); }} onBack={() => setCurrentStep("dashboard")} />;
+  }
+
+  if (currentStep === "upload") {
+    return <ReportUpload onComplete={(data) => { setReports(data); setCurrentStep("analysis"); }} onBack={() => setCurrentStep("dashboard")} />;
+  }
+
+  if (currentStep === "analysis") {
+    return <AIAnalysis surveyData={surveyData} reports={reports} onComplete={(data) => { setAnalysis(data); setCurrentStep("goals"); }} onBack={() => setCurrentStep("dashboard")} />;
+  }
+
+  if (currentStep === "goals") {
+    return <HealthGoals analysis={analysis} onComplete={() => setCurrentStep("dashboard")} onBack={() => setCurrentStep("dashboard")} />;
+  }
+
+  if (currentStep === "camps") {
+    return <NearbyHealthCamps onBack={() => setCurrentStep("dashboard")} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
       {/* Header */}
@@ -126,7 +154,7 @@ export default function PatientPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="secondary" className="w-full">Upload Files</Button>
+              <Button variant="secondary" className="w-full" onClick={() => setCurrentStep("upload")}>Upload Files</Button>
             </CardContent>
           </Card>
 
@@ -158,7 +186,7 @@ export default function PatientPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full">Find Camps</Button>
+              <Button variant="outline" className="w-full" onClick={() => setCurrentStep("camps")}>Find Camps</Button>
             </CardContent>
           </Card>
 

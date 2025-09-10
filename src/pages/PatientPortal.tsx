@@ -31,6 +31,9 @@ export default function PatientPortal() {
   const [currentStep, setCurrentStep] = useState("login");
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
+  const [otpStep, setOtpStep] = useState<'idle' | 'sent'>('idle');
+  const [enteredOtp, setEnteredOtp] = useState("");
+  const [generatedOtp, setGeneratedOtp] = useState("");
   const [currentPatient, setCurrentPatient] = useState<PatientData | null>(null);
   const [surveyData, setSurveyData] = useState(null);
   const [reports, setReports] = useState([]);
@@ -53,22 +56,48 @@ export default function PatientPortal() {
   const loadPatientData = (patientId: string) => {
     const patient = storage.getPatient(patientId);
     if (patient) {
-      setSurveyData(patient.surveyData);
-      setReports(patient.reports || []);
-      setAnalysis(patient.analysis);
+      setSurveyData(patient.surveyData || null);
+
+      // Merge reports from both patient object and global medicalReports
+      const reportsFromStorage = storage.getReportsByPatient(patientId) || [];
+      const existingPatientReports = patient.reports || [];
+      const mergedReports = [...reportsFromStorage];
+      existingPatientReports.forEach(r => {
+        if (!mergedReports.some(m => m.id === r.id)) mergedReports.push(r);
+      });
+
+      setReports(mergedReports);
+      setAnalysis(patient.analysis || null);
       setHealthGoals(patient.healthGoals || []);
-      setBookings(storage.getBookingsByPatient(patientId));
+      setBookings(storage.getBookingsByPatient(patientId) || []);
+
+      // Ensure patient object is updated with merged reports for consistency
+      if (mergedReports.length !== existingPatientReports.length) {
+        storage.updatePatient(patientId, { reports: mergedReports });
+      }
+
+      // Make sure survey data is visible in the UI
+      if (patient.surveyData) {
+        setSurveyData(patient.surveyData);
+      }
     }
-    setCompletedGoals(storage.getCompletedGoals());
+    setCompletedGoals(storage.getCompletedGoals() || []);
   };
 
-  const handleLogin = () => {
-    if (!aadhaarNumber || !mobileNumber) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter both Aadhaar number and mobile number.",
-        variant: "destructive",
-      });
+  const sendOtp = () => {
+    if (!aadhaarNumber) {
+      toast({ title: "Aadhaar required", description: "Enter your Aadhaar number.", variant: "destructive" });
+      return;
+    }
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(otp);
+    setOtpStep('sent');
+    toast({ title: "OTP Sent", description: `Your OTP is ${otp}. Enter it to continue.` });
+  };
+
+  const verifyOtpAndLogin = () => {
+    if (otpStep !== 'sent' || enteredOtp !== generatedOtp) {
+      toast({ title: "Invalid OTP", description: "Please enter the correct OTP.", variant: "destructive" });
       return;
     }
 
@@ -80,7 +109,7 @@ export default function PatientPortal() {
       patient = {
         id: Date.now().toString(),
         aadhaarNumber,
-        mobileNumber,
+        mobileNumber: "",
         personalInfo: {
           name: "",
           age: "",
@@ -95,25 +124,11 @@ export default function PatientPortal() {
       storage.savePatient(patient);
     }
 
-    // Verify mobile number matches
-    if (patient.mobileNumber !== mobileNumber) {
-      toast({
-        title: "Verification Failed",
-        description: "Mobile number does not match the registered Aadhaar number.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setCurrentPatient(patient);
     storage.setCurrentPatient(patient);
     setCurrentStep("dashboard");
     loadPatientData(patient.id);
-    
-    toast({
-      title: "Login Successful",
-      description: `Welcome back, ${patient.personalInfo.name || 'Patient'}!`,
-    });
+    toast({ title: "Login Successful", description: `Welcome, ${patient.personalInfo.name || 'Patient'}!` });
   };
 
   if (currentStep === "login") {
@@ -127,7 +142,7 @@ export default function PatientPortal() {
             </div>
             <CardTitle>Patient Login</CardTitle>
             <CardDescription>
-              Enter your Aadhaar card number and mobile number to access your health portal
+              Enter your Aadhaar number and verify via OTP to access your health portal
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -141,19 +156,21 @@ export default function PatientPortal() {
                 maxLength={12}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="mobile">Mobile Number</Label>
-              <Input
-                id="mobile"
-                placeholder="+91 9876543210"
-                value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value)}
-              />
-            </div>
-            <Button onClick={handleLogin} className="w-full">
-              <CreditCard className="h-4 w-4 mr-2" />
-              Verify & Login
-            </Button>
+            {otpStep === 'idle' ? (
+              <Button onClick={sendOtp} className="w-full">
+                Send OTP
+              </Button>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="otp">Enter OTP</Label>
+                  <Input id="otp" placeholder="6-digit code" value={enteredOtp} onChange={(e) => setEnteredOtp(e.target.value)} />
+                </div>
+                <Button onClick={verifyOtpAndLogin} className="w-full">
+                  Verify & Login
+                </Button>
+              </>
+            )}
             <Button 
               variant="outline" 
               className="w-full"
@@ -172,14 +189,42 @@ export default function PatientPortal() {
     setSurveyData(data);
     if (currentPatient) {
       storage.updatePatient(currentPatient.id, { surveyData: data });
+      // Also save to healthSurveys collection
+      storage.saveSurvey({
+        patientId: currentPatient.id,
+        data: data,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Update current patient with survey data
+      const updatedPatient = {
+        ...currentPatient,
+        surveyData: data
+      };
+      setCurrentPatient(updatedPatient);
+      storage.setCurrentPatient(updatedPatient);
+
+      // Immediately merge any existing reports tied to this patient so they show up next
+      const existingReports = storage.getReportsByPatient(currentPatient.id) || [];
+      if (existingReports.length > 0) {
+        setReports(existingReports);
+        storage.updatePatient(currentPatient.id, { reports: existingReports });
+      }
     }
     setCurrentStep("upload");
   };
 
   const handleReportComplete = (data: any[]) => {
-    setReports(data);
+    // Attach patientId to each report for consistent persistence and admin visibility
+    const reportsWithPatient = currentPatient
+      ? data.map((report) => ({ ...report, patientId: currentPatient.id }))
+      : data;
+
+    setReports(reportsWithPatient);
     if (currentPatient) {
-      storage.updatePatient(currentPatient.id, { reports: data });
+      storage.updatePatient(currentPatient.id, { reports: reportsWithPatient });
+      // Also save to medicalReports collection
+      storage.saveReports(reportsWithPatient);
     }
     setCurrentStep("analysis");
   };
@@ -187,7 +232,7 @@ export default function PatientPortal() {
   const handleAnalysisComplete = (data: any) => {
     setAnalysis(data);
     if (currentPatient) {
-      storage.updatePatient(currentPatient.id, { analysis: data });
+      storage.updatePatient(currentPatient.id, { analysis: data, healthGoals: data.healthGoals || [] });
       // Save analysis to storage
       storage.saveAnalysis({
         id: Date.now().toString(),
@@ -260,6 +305,18 @@ export default function PatientPortal() {
             <span className="text-sm text-muted-foreground">
               Welcome, {currentPatient?.personalInfo.name || 'Patient'}
             </span>
+            <Button variant="outline" size="sm" onClick={() => {
+              // Reset current patient's assessment data
+              if (currentPatient) {
+                storage.updatePatient(currentPatient.id, { surveyData: null as any, reports: [], analysis: null as any });
+                setSurveyData(null);
+                setReports([]);
+                setAnalysis(null);
+                setCurrentStep('survey');
+              }
+            }} className="hover:scale-105 transition-transform duration-200">
+              Start New Assessment
+            </Button>
             <Button variant="outline" size="sm" onClick={handleLogout} className="hover:scale-105 transition-transform duration-200">
               Logout
             </Button>
@@ -376,10 +433,20 @@ export default function PatientPortal() {
             </CardHeader>
             <CardContent>
               {reports.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center text-success text-sm">
                     <CheckCircle className="h-4 w-4 mr-1" />
                     {reports.length} report(s) uploaded
+                  </div>
+                  <div className="max-h-40 overflow-auto border rounded-md divide-y">
+                    {reports.map((r: any) => (
+                      <div key={r.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                        <div className="truncate">
+                          <div className="font-medium truncate">{r.name || 'Report'}</div>
+                          <div className="text-xs text-muted-foreground">{(r.type || '').replace('application/', '')} • {new Date(r.uploadDate || Date.now()).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   <Button variant="outline" className="w-full" onClick={() => setCurrentStep("upload")}>
                     Upload More
@@ -447,26 +514,39 @@ export default function PatientPortal() {
             </CardContent>
           </Card>
 
-          {/* Appointments */}
+          {/* Pre-Diagnosis (replaces Appointments) */}
           <Card className="hover:shadow-lg transition-all duration-300">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Calendar className="h-5 w-5 mr-2 text-primary" />
-                My Appointments
+                Pre-Diagnosis
               </CardTitle>
               <CardDescription>
-                View and manage your bookings
+                Preliminary assessment based on your analysis
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <div className="text-sm">
-                  <span className="font-medium">{bookings.length}</span> bookings
+              {analysis?.preDiagnosis && Array.isArray(analysis.preDiagnosis) && analysis.preDiagnosis.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="max-h-40 overflow-auto divide-y rounded-md border">
+                    {analysis.preDiagnosis.map((d: any, idx: number) => (
+                      <div key={idx} className="px-3 py-2 text-sm">
+                        <div className="font-medium">{d.condition || 'Assessment'}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {d.probability ? `Probability: ${d.probability} • ` : ''}Urgency: {d.urgency || 'Low'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button variant="outline" className="w-full" onClick={() => setCurrentStep("analysis")}>
+                    View Full Analysis
+                  </Button>
                 </div>
-                <Button variant="outline" className="w-full">
-                  View Appointments
+              ) : (
+                <Button variant="outline" className="w-full" disabled>
+                  Complete Analysis First
                 </Button>
-              </div>
+              )}
             </CardContent>
           </Card>
 

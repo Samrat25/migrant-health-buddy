@@ -350,28 +350,82 @@ class StorageManager {
 
   // Survey Data Management
   public getSurveys(): any[] {
-    return this.getItem<any>('healthSurveys');
+    return this.getItem<any>('healthSurveys') || [];
+  }
+
+  public getSurveysByPatient(patientId: string): any[] {
+    const surveys = this.getSurveys();
+    return surveys.filter(survey => survey.patientId === patientId);
   }
 
   public saveSurvey(survey: any): void {
+    // Add survey to healthSurveys collection
     const surveys = this.getSurveys();
-    surveys.push({ ...survey, id: Date.now().toString(), timestamp: new Date().toISOString() });
+    const newSurvey = { 
+      ...survey, 
+      id: Date.now().toString(), 
+      timestamp: new Date().toISOString() 
+    };
+    surveys.push(newSurvey);
     this.setItem('healthSurveys', surveys);
+    
+    // Also update patient record
+    if (survey.patientId) {
+      const patient = this.getPatient(survey.patientId);
+      if (patient) {
+        patient.surveyData = survey.data;
+        patient.updatedAt = new Date().toISOString();
+        this.updatePatient(survey.patientId, patient);
+      }
+    }
   }
 
   // Report Management
   public getReports(): any[] {
-    return this.getItem<any>('medicalReports');
+    return this.getItem<any>('medicalReports') || [];
+  }
+
+  public getReportsByPatient(patientId: string): any[] {
+    // Get reports from both collections
+    const allReports = this.getReports() || [];
+    const patientReports = allReports.filter(report => report.patientId === patientId);
+    
+    // Also check patient object
+    const patient = this.getPatient(patientId);
+    const patientObjectReports = patient?.reports || [];
+    
+    // Combine both sources without duplicates
+    const combinedReports = [...patientReports];
+    patientObjectReports.forEach(report => {
+      if (!combinedReports.some(r => r.id === report.id)) {
+        combinedReports.push(report);
+      }
+    });
+    
+    return combinedReports;
   }
 
   public saveReports(reports: any[]): void {
+    // Add reports to medicalReports collection
     const existingReports = this.getReports();
     const newReports = reports.map(report => ({
       ...report,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      uploadDate: new Date().toISOString()
+      id: report.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9)),
+      uploadDate: report.uploadDate || new Date().toISOString()
     }));
     this.setItem('medicalReports', [...existingReports, ...newReports]);
+    
+    // Also update patient record if patientId is available
+    const patientId = newReports[0]?.patientId;
+    if (patientId) {
+      const patient = this.getPatient(patientId);
+      if (patient) {
+        const patientReports = patient.reports || [];
+        patient.reports = [...patientReports, ...newReports];
+        patient.updatedAt = new Date().toISOString();
+        this.updatePatient(patientId, patient);
+      }
+    }
   }
 
   // Health Goals Management

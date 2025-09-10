@@ -7,6 +7,8 @@ import Index from "./pages/Index";
 import PatientPortal from "./pages/PatientPortal";
 import DoctorPortal from "./pages/DoctorPortal";
 import AdminPortal from "./pages/AdminPortal";
+import PatientAuth from "./pages/PatientAuth";
+import AdminAuth from "./pages/AdminAuth";
 import NotFound from "./pages/NotFound";
 import "./lib/demoData"; // Auto-seed demo data
 
@@ -21,7 +23,9 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/patient" element={<PatientPortal />} />
+          <Route path="/patient-login" element={<PatientAuth />} />
           <Route path="/doctor" element={<DoctorPortal />} />
+          <Route path="/admin-login" element={<AdminAuth />} />
           <Route path="/admin" element={<AdminPortal />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

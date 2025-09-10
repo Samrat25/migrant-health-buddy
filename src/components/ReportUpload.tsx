@@ -55,32 +55,63 @@ export default function ReportUpload({ onComplete, onBack }: ReportUploadProps) 
 
     // Create mock report data
     const reports = uploadedFiles.map((file, index) => ({
-      id: Date.now() + index,
+      id: Date.now().toString() + index,
       name: file.name,
       type: file.type,
       size: file.size,
       uploadDate: new Date().toISOString(),
       // Simulate report content based on filename
-      content: generateMockReportContent(file.name)
+      content: generateMockReportContent(file.name),
+      // Add patient ID from localStorage
+      patientId: JSON.parse(localStorage.getItem('currentPatient') || '{}')?.id || ''
     }));
 
-    // Save to localStorage
-    const existingReports = JSON.parse(localStorage.getItem('medicalReports') || '[]');
-    const newReports = reports.map(report => ({
-      ...report,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      uploadDate: new Date().toISOString()
-    }));
-    localStorage.setItem('medicalReports', JSON.stringify([...existingReports, ...newReports]));
+    // Save to localStorage using storage helper
+    try {
+      // Make sure reports have string IDs
+      const newReports = reports.map(report => ({
+        ...report,
+        id: report.id.toString(),
+        uploadDate: new Date().toISOString()
+      }));
+      
+      // Save to medicalReports collection
+      const existingReports = JSON.parse(localStorage.getItem('medicalReports') || '[]');
+      localStorage.setItem('medicalReports', JSON.stringify([...existingReports, ...newReports]));
+      
+      // Also update the current patient's reports
+      const currentPatient = JSON.parse(localStorage.getItem('currentPatient') || '{}');
+      if (currentPatient && currentPatient.id) {
+        const patientReports = currentPatient.reports || [];
+        currentPatient.reports = [...patientReports, ...newReports];
+        localStorage.setItem('currentPatient', JSON.stringify(currentPatient));
+        
+        // Update in patients collection
+        const patients = JSON.parse(localStorage.getItem('patients') || '[]');
+        const patientIndex = patients.findIndex((p: any) => p.id === currentPatient.id);
+        if (patientIndex !== -1) {
+          patients[patientIndex] = currentPatient;
+          localStorage.setItem('patients', JSON.stringify(patients));
+        }
+      }
+      
+      setUploading(false);
+      
+      toast({
+        title: "Upload Successful",
+        description: `${uploadedFiles.length} report(s) uploaded successfully.`,
+      });
 
-    setUploading(false);
-    
-    toast({
-      title: "Upload Successful",
-      description: `${uploadedFiles.length} report(s) uploaded successfully.`,
-    });
-
-    onComplete(reports);
+      onComplete(newReports);
+    } catch (error) {
+      console.error('Error saving reports:', error);
+      toast({
+        title: "Upload Failed",
+        description: "There was an error saving your reports. Please try again.",
+        variant: "destructive",
+      });
+      setUploading(false);
+    }
   };
 
   const generateMockReportContent = (filename: string) => {

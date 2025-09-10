@@ -183,7 +183,7 @@ export default function DoctorPortal() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password (Optional)</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -289,11 +289,11 @@ export default function DoctorPortal() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
       {/* Header */}
-      <div className="border-b bg-card/50 backdrop-blur-sm">
+      <div className="border-b bg-gradient-to-r from-blue-600/10 to-teal-600/10 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center">
-            <Stethoscope className="h-6 w-6 text-primary mr-2" />
-            <h1 className="text-xl font-semibold">Doctor Portal</h1>
+            <Stethoscope className="h-6 w-6 text-blue-600 mr-2" />
+            <h1 className="text-xl font-semibold text-blue-700">Doctor Portal</h1>
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-muted-foreground">

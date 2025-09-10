@@ -61,7 +61,9 @@ export default function HealthGoals({ analysis, onComplete, onBack }: HealthGoal
     }
   };
 
-  const completionPercentage = (completedGoals.length / goals.length) * 100;
+  const rawCompletion = goals.length === 0 ? 0 : (completedGoals.length / goals.length) * 100;
+  const completionPercentage = Math.min(100, Math.max(0, rawCompletion));
+  const overflowPercentage = Math.max(0, Math.round(rawCompletion - 100));
 
   const generatePreDiagnosis = () => {
     const riskLevel = analysis.riskLevel;
@@ -177,7 +179,7 @@ export default function HealthGoals({ analysis, onComplete, onBack }: HealthGoal
           </CardContent>
         </Card>
 
-        {/* Progress Overview */}
+        {/* Progress Overview (capped at 100%, overflow noted) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -186,7 +188,7 @@ export default function HealthGoals({ analysis, onComplete, onBack }: HealthGoal
                 Goal Progress
               </span>
               <span className="text-sm text-muted-foreground">
-                {completedGoals.length} of {goals.length} completed
+                {Math.min(completedGoals.length, goals.length)} of {goals.length} completed
               </span>
             </CardTitle>
           </CardHeader>
@@ -194,7 +196,7 @@ export default function HealthGoals({ analysis, onComplete, onBack }: HealthGoal
             <div className="space-y-2">
               <Progress value={completionPercentage} className="w-full" />
               <p className="text-sm text-muted-foreground text-center">
-                {Math.round(completionPercentage)}% Complete
+                {Math.round(rawCompletion)}% Complete{overflowPercentage > 0 ? ` (capped at 100%)` : ''}
               </p>
             </div>
           </CardContent>

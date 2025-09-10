@@ -54,44 +54,21 @@ export default function RoleSelection() {
   }, []);
 
   const handlePatientLogin = () => {
-    if (!aadhaarNumber || !mobileNumber) {
+    if (!aadhaarNumber) {
       toast({
-        title: "Missing Information",
-        description: "Please enter both Aadhaar number and mobile number.",
+        title: "Aadhaar required",
+        description: "Enter your Aadhaar number to continue.",
         variant: "destructive",
       });
       return;
     }
 
-    // Check if patient exists
+    // Preload session with existing patient if any; OTP handled in patient page
     const existingPatient = storage.getPatientByAadhaar(aadhaarNumber);
-    
     if (existingPatient) {
-      // Patient exists, set current session and redirect
       storage.setCurrentPatient(existingPatient);
-      window.location.href = "/patient";
-    } else {
-      // New patient, create and redirect
-      const newPatient = {
-        id: Date.now().toString(),
-        aadhaarNumber,
-        mobileNumber,
-        personalInfo: {
-          name: "",
-          age: "",
-          gender: "",
-          occupation: "",
-          state: "",
-          city: ""
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      storage.savePatient(newPatient);
-      storage.setCurrentPatient(newPatient);
-      window.location.href = "/patient";
     }
+    window.location.href = "/patient";
   };
 
   return (
@@ -121,6 +98,13 @@ export default function RoleSelection() {
             </div>
             <div className="flex items-center space-x-4 animate-in fade-in-50 slide-in-from-right-4 duration-1000">
               <Button 
+                size="sm"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0"
+                onClick={() => window.location.href = "/patient-login"}
+              >
+                Get Started
+              </Button>
+              <Button 
                 variant="outline" 
                 className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm"
                 onClick={() => window.location.href = "/doctor"}
@@ -131,7 +115,7 @@ export default function RoleSelection() {
               <Button 
                 variant="outline" 
                 className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm"
-                onClick={() => window.location.href = "/admin"}
+                onClick={() => window.location.href = "/admin-login"}
               >
                 <Shield className="h-4 w-4 mr-2" />
                 Admin Portal
@@ -181,49 +165,7 @@ export default function RoleSelection() {
           </div>
         </div>
 
-        {/* Patient Login Card */}
-        <div className="max-w-md mx-auto mb-16 animate-in fade-in-50 slide-in-from-bottom-4 duration-1000" style={{animationDelay: '0.8s'}}>
-          <Card className="bg-white/10 backdrop-blur-md border-white/20 shadow-2xl">
-            <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center text-white">
-                <Heart className="h-6 w-6 mr-2 text-red-400" />
-                Patient Portal Access
-              </CardTitle>
-              <CardDescription className="text-purple-200">
-                Enter your details to start your health journey
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="aadhaar" className="text-white">Aadhaar Number</Label>
-                <Input
-                  id="aadhaar"
-                  placeholder="Enter your Aadhaar number"
-                  value={aadhaarNumber}
-                  onChange={(e) => setAadhaarNumber(e.target.value)}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-purple-200 focus:border-purple-400"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mobile" className="text-white">Mobile Number</Label>
-                <Input
-                  id="mobile"
-                  placeholder="Enter your mobile number"
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-purple-200 focus:border-purple-400"
-                />
-              </div>
-              <Button 
-                onClick={handlePatientLogin} 
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                <ArrowRight className="h-4 w-4 mr-2" />
-                Start Health Assessment
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+
 
         {/* Animated Features */}
         <div className="mb-16">
@@ -333,7 +275,7 @@ export default function RoleSelection() {
               <Button 
                 variant="outline" 
                 className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm"
-                onClick={() => window.location.href = "/admin"}
+                onClick={() => window.location.href = "/admin-login"}
               >
                 <ArrowRight className="h-4 w-4 mr-2" />
                 Access Admin Portal

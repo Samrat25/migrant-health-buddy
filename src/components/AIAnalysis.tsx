@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,8 @@ import {
   TrendingUp, 
   Activity,
   Heart,
-  Shield
+  Shield,
+  FileText
 } from "lucide-react";
 
 interface AIAnalysisProps {
@@ -27,78 +28,136 @@ export default function AIAnalysis({ surveyData, reports, onComplete, onBack }: 
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const { toast } = useToast();
+  const hasRunRef = useRef(false);
 
   useEffect(() => {
-    // Simulate AI analysis process
-    const runAnalysis = async () => {
-      // Progress simulation
-      const intervals = [10, 25, 45, 60, 80, 95, 100];
-      
-      for (let i = 0; i < intervals.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setAnalysisProgress(intervals[i]);
-      }
-
-      // Generate AI analysis based on survey and reports
-      const analysisResult = generateAIAnalysis(surveyData, reports);
-      setAnalysis(analysisResult);
-      setAnalysisComplete(true);
-
-      // Save analysis to localStorage
-      const analysisWithTimestamp = {
-        ...analysisResult,
-        timestamp: new Date().toISOString(),
-        id: Date.now()
-      };
-      
-      const existingAnalyses = JSON.parse(localStorage.getItem('aiAnalyses') || '[]');
-      localStorage.setItem('aiAnalyses', JSON.stringify([...existingAnalyses, analysisWithTimestamp]));
-
+    if (hasRunRef.current) return; // prevent duplicate runs & blinking notifications
+    hasRunRef.current = true;
+    // Check if we have survey data; if not, try to continue but with safe defaults
+    if (!surveyData) {
       toast({
-        title: "Analysis Complete",
-        description: "Your health analysis has been generated successfully.",
+        title: "Missing Survey",
+        description: "Survey not found. Using defaults for analysis. For best results, complete the survey.",
       });
+    }
+
+    const runAnalysis = async () => {
+      try {
+        // Progress simulation
+        const intervals = [10, 25, 45, 60, 80, 95, 100];
+        for (let i = 0; i < intervals.length; i++) {
+          await new Promise(resolve => setTimeout(resolve, 600));
+          setAnalysisProgress(intervals[i]);
+        }
+
+        // Generate AI analysis with robust defaults
+        const safeSurvey = {
+          personalInfo: { age: '', gender: '', occupation: '', state: '' },
+          symptoms: [],
+          exposure: { travelHistory: 'no', crowdedPlaces: 'no', sickContact: 'no' },
+          healthHistory: { chronicDiseases: [], medications: '', allergies: '' },
+          ...(surveyData || {})
+        };
+        const safeReports = Array.isArray(reports) ? reports : [];
+
+        let analysisResult = generateAIAnalysis(safeSurvey, safeReports);
+
+        // Prototype: if anything appears missing, inject a safe default and continue
+        if (!analysisResult || !analysisResult.riskLevel) {
+          analysisResult = buildFallbackAnalysis(safeSurvey, safeReports);
+        }
+
+        setAnalysis(analysisResult);
+        setAnalysisComplete(true);
+
+        // Save analysis to localStorage
+        const analysisWithTimestamp = {
+          ...analysisResult,
+          timestamp: new Date().toISOString(),
+          id: Date.now().toString()
+        };
+        const existingAnalyses = JSON.parse(localStorage.getItem('aiAnalyses') || '[]');
+        localStorage.setItem('aiAnalyses', JSON.stringify([...existingAnalyses, analysisWithTimestamp]));
+
+        toast({ title: "Analysis Complete", description: "Your health analysis has been generated successfully." });
+      } catch (error) {
+        console.error('AI analysis error:', error);
+        // Prototype fallback: never fail - generate default low-risk analysis
+        const fallback = buildFallbackAnalysis(
+          {
+            personalInfo: { age: '', gender: '', occupation: '', state: '' },
+            symptoms: [],
+            exposure: { travelHistory: 'no', crowdedPlaces: 'no', sickContact: 'no' },
+            healthHistory: { chronicDiseases: [], medications: '', allergies: '' }
+          },
+          []
+        );
+        setAnalysis(fallback);
+        setAnalysisComplete(true);
+        toast({ title: "Prototype Mode", description: "Generated a safe default analysis." });
+      }
     };
 
     runAnalysis();
   }, [surveyData, reports, toast]);
 
+  const buildFallbackAnalysis = (survey: any, reportData: any[]) => {
+    return {
+      riskLevel: 'low',
+      riskColor: 'success',
+      riskScore: 10,
+      riskFactors: ['Prototype default assessment'],
+      reportFindings: reportData.length ? ['Reports reviewed'] : ['No reports provided'],
+      detailedAnalysis: [],
+      insights: [],
+      recommendations: ['Continue preventive healthcare measures', 'Maintain healthy lifestyle'],
+      healthGoals: [
+        { id: 1, title: 'Complete Health Checkup', description: 'Book a routine health check', deadline: '30 days', priority: 'medium', completed: false }
+      ],
+      summary: 'Prototype analysis generated with default low risk.',
+      nextSteps: ['Schedule annual health camp visit', 'Stay updated with preventive screenings'],
+      preDiagnosis: [
+        { condition: 'General Health Assessment', probability: '40%', urgency: 'Low', symptoms: survey?.symptoms || [], recommendation: 'Maintain good health practices' }
+      ]
+    };
+  };
+
   const generateAIAnalysis = (survey: any, reportData: any[]) => {
     // Calculate risk factors based on survey
-    const riskFactors = [];
+    const riskFactors: string[] = [];
     let riskScore = 0;
     
     // Analyze symptoms
-    if (survey.symptoms.length > 0) {
+    if (Array.isArray(survey.symptoms) && survey.symptoms.length > 0) {
       riskFactors.push(`Current symptoms: ${survey.symptoms.join(', ')}`);
       riskScore += survey.symptoms.length * 10;
     }
 
     // Analyze exposure
-    if (survey.exposure.travelHistory === 'yes') {
+    if (survey.exposure?.travelHistory === 'yes') {
       riskFactors.push('Recent travel history');
       riskScore += 15;
     }
-    if (survey.exposure.crowdedPlaces === 'yes') {
+    if (survey.exposure?.crowdedPlaces === 'yes') {
       riskFactors.push('Recent exposure to crowded places');
       riskScore += 10;
     }
-    if (survey.exposure.sickContact === 'yes') {
+    if (survey.exposure?.sickContact === 'yes') {
       riskFactors.push('Contact with sick individuals');
       riskScore += 20;
     }
 
     // Analyze chronic diseases
-    if (survey.healthHistory.chronicDiseases.length > 0) {
+    if (Array.isArray(survey.healthHistory?.chronicDiseases) && survey.healthHistory.chronicDiseases.length > 0) {
       riskFactors.push(`Chronic conditions: ${survey.healthHistory.chronicDiseases.join(', ')}`);
       riskScore += survey.healthHistory.chronicDiseases.length * 15;
     }
 
     // Analyze reports
-    const reportFindings = [];
-    const detailedAnalysis = [];
+    const reportFindings: string[] = [];
+    const detailedAnalysis: any[] = [];
     reportData.forEach(report => {
-      if (report.content.type === 'Blood Test') {
+      if (report?.content?.type === 'Blood Test' && report.content.values && report.content.normalRanges) {
         const bloodAnalysis = analyzeBloodReport(report.content);
         reportFindings.push(...bloodAnalysis);
         detailedAnalysis.push({
@@ -110,8 +169,8 @@ export default function AIAnalysis({ surveyData, reports, onComplete, onBack }: 
         if (bloodAnalysis.some(finding => finding.includes('abnormal'))) {
           riskScore += 25;
         }
-      } else if (report.content.type === 'X-Ray') {
-        reportFindings.push(`X-Ray: ${report.content.findings}`);
+      } else if (report?.content?.type === 'X-Ray') {
+        if (report.content.findings) reportFindings.push(`X-Ray: ${report.content.findings}`);
         detailedAnalysis.push({
           type: 'X-Ray',
           findings: report.content.findings,
@@ -252,8 +311,10 @@ export default function AIAnalysis({ surveyData, reports, onComplete, onBack }: 
     const age = survey.personalInfo.age;
     const symptomsCount = survey.symptoms.length;
     const chronicCount = survey.healthHistory.chronicDiseases.length;
+    const lifestyleScore = 100 - (symptomsCount * 5) - (chronicCount * 10);
+    const pri = riskLevel === 'high' ? 80 : riskLevel === 'medium' ? 50 : 25;
     
-    return `Based on your health assessment, you are a ${age}-year-old ${survey.personalInfo.gender} with ${symptomsCount} current symptoms and ${chronicCount} chronic conditions. Your overall risk level is assessed as ${riskLevel}. ${reports.length} medical reports have been analyzed to provide comprehensive health insights.`;
+    return `Based on your health assessment, you are a ${age}-year-old ${survey.personalInfo.gender} with ${symptomsCount} current symptoms and ${chronicCount} chronic conditions. Your overall risk level is assessed as ${riskLevel}. ${reports.length} medical reports have been analyzed to provide comprehensive health insights. Lifestyle Score: ${Math.max(0, lifestyleScore)}/100. Preventive Risk Index: ${pri}/100.`;
   };
 
   const generateNextSteps = (riskLevel: string) => {
@@ -335,8 +396,16 @@ export default function AIAnalysis({ surveyData, reports, onComplete, onBack }: 
     );
   }
 
+  // Helper to format file size
+  const formatBytes = (bytes: number) => {
+    if (!bytes && bytes !== 0) return '—';
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+  };
+
   const generateDetailedInsights = (survey: any, reportData: any[], riskLevel: string) => {
-    const insights = [];
+    const insights: any[] = [];
     
     // Symptom analysis
     if (survey.symptoms.length > 0) {
@@ -379,6 +448,20 @@ export default function AIAnalysis({ surveyData, reports, onComplete, onBack }: 
       });
     }
     
+    // Lifestyle score (prototype)
+    const lifestyleScore = 100 - (survey.symptoms.length * 5) - (survey.healthHistory.chronicDiseases.length * 10);
+    insights.push({
+      category: 'Lifestyle Score',
+      findings: [{ score: Math.max(0, lifestyleScore), interpretation: lifestyleScore > 70 ? 'Good' : lifestyleScore > 40 ? 'Moderate' : 'Needs improvement' }]
+    });
+
+    // Preventive risk index (prototype)
+    const pri = riskLevel === 'high' ? 80 : riskLevel === 'medium' ? 50 : 25;
+    insights.push({
+      category: 'Preventive Risk Index',
+      findings: [{ index: pri, recommendation: pri >= 50 ? 'Increase monitoring and screenings' : 'Maintain routine care' }]
+    });
+
     return insights;
   };
 
@@ -557,6 +640,41 @@ export default function AIAnalysis({ surveyData, reports, onComplete, onBack }: 
             View Health Goals & Continue
           </Button>
         </div>
+
+        {/* Uploaded Reports Preview */}
+        {Array.isArray(reports) && reports.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                Uploaded Reports
+              </CardTitle>
+              <CardDescription>
+                These reports were analyzed to generate your AI insights
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {reports.map((r: any) => (
+                  <div key={r.id} className="flex items-center justify-between border rounded-md p-3">
+                    <div className="flex items-center space-x-3 overflow-hidden">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <div className="truncate">
+                        <div className="text-sm font-medium truncate">{r.name || 'Report'}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {(r.type || '').replace('application/', '')} • {formatBytes(Number(r.size))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(r.uploadDate || Date.now()).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -25,6 +25,14 @@ import {
 } from "lucide-react";
 
 export default function AdminPortal() {
+  // Require admin session
+  if (typeof window !== 'undefined') {
+    const adminSession = localStorage.getItem('adminSession');
+    if (!adminSession) {
+      window.location.href = '/admin-login';
+      return null as any;
+    }
+  }
   const [currentView, setCurrentView] = useState("main");
   const [searchTerm, setSearchTerm] = useState("");
   const [healthCamps, setHealthCamps] = useState<HealthCampData[]>([]);
@@ -34,128 +42,259 @@ export default function AdminPortal() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Initialize all required storage collections with empty arrays if needed
+    const requiredCollections = [
+      'patients', 'doctors', 'healthCamps', 'verifications', 
+      'analyses', 'bookings', 'healthSurveys', 'medicalReports', 
+      'healthGoals', 'completedHealthGoals'
+    ];
+    
+    requiredCollections.forEach(collection => {
+      if (!localStorage.getItem(collection)) {
+        localStorage.setItem(collection, '[]');
+      }
+    });
+    
     loadData();
   }, []);
 
   const loadData = () => {
-    setHealthCamps(storage.getHealthCamps());
-    setPatients(storage.getPatients());
-    setDoctors(storage.getDoctors());
-    
-    // Create pending verifications from doctors and patients
-    const pendingDocs = storage.getDoctors().filter(d => d.status === 'pending-verification');
-    const pendingPatients = storage.getPatients().filter(p => !p.personalInfo.name);
-    
-    const verifications = [
-      ...pendingDocs.map(doc => ({
-        id: doc.id,
-        name: doc.fullName,
-        type: "doctor",
-        license: doc.registerId,
-        submitted: doc.registrationDate,
-        status: doc.status
-      })),
-      ...pendingPatients.map(patient => ({
-        id: patient.id,
-        name: patient.personalInfo.name || 'Unknown',
-        type: "patient",
-        aadhaar: patient.aadhaarNumber.slice(0, 4) + '-****-' + patient.aadhaarNumber.slice(-4),
-        submitted: patient.createdAt,
-        status: 'pending'
-      }))
-    ];
-    
-    setPendingVerifications(verifications);
+    try {
+      // Load data from storage with error handling
+      const camps = storage.getHealthCamps() || [];
+      const patientsList = storage.getPatients() || [];
+      const doctorsList = storage.getDoctors() || [];
+      
+      setHealthCamps(camps);
+      setPatients(patientsList);
+      setDoctors(doctorsList);
+      
+      // Create pending verifications from doctors and patients
+      const pendingDocs = doctorsList.filter(d => d.status === 'pending-verification');
+      const pendingPatients = patientsList.filter(p => !p.personalInfo?.verified);
+      
+      const verifications = [
+        ...pendingDocs.map(doc => ({
+          id: doc.id,
+          name: doc.fullName || 'Unnamed Doctor',
+          type: "doctor",
+          license: doc.registerId || 'No License',
+          submitted: doc.registrationDate || doc.createdAt || new Date().toISOString(),
+          status: doc.status || 'pending-verification'
+        })),
+        ...pendingPatients.map(patient => ({
+          id: patient.id,
+          name: patient.personalInfo?.name || 'Unknown',
+          type: "patient",
+          aadhaar: patient.aadhaarNumber ? 
+            (patient.aadhaarNumber.slice(0, 4) + '-****-' + patient.aadhaarNumber.slice(-4)) : 
+            'No Aadhaar',
+          submitted: patient.createdAt || new Date().toISOString(),
+          status: 'pending'
+        }))
+      ];
+      
+      setPendingVerifications(verifications);
+      
+      // Log success for debugging
+      console.log('Admin data loaded successfully:', {
+        camps: camps.length,
+        patients: patientsList.length,
+        doctors: doctorsList.length,
+        verifications: verifications.length
+      });
+    } catch (error) {
+      console.error('Error loading admin data:', error);
+      toast({
+        title: "Data Loading Error",
+        description: "There was a problem loading the admin data. Please refresh the page.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCampCreation = (campData: HealthCampData) => {
-    storage.saveHealthCamp(campData);
-    loadData();
-    setCurrentView("main");
-    
-    toast({
-      title: "Health Camp Created",
-      description: `${campData.name} has been created successfully.`,
-    });
+    try {
+      // Generate a unique ID for the camp if not already present
+      const newCamp = {
+        ...campData,
+        status: campData.status || 'active',
+        createdAt: campData.createdAt || new Date().toISOString(),
+        bookings: campData.bookings || []
+      };
+      
+      // Save the health camp to storage
+      storage.saveHealthCamp(newCamp);
+      loadData();
+      setCurrentView("main");
+      
+      toast({
+        title: "Health Camp Created",
+        description: `${campData.name} has been created successfully.`,
+      });
+    } catch (error) {
+      console.error('Error creating health camp:', error);
+      toast({
+        title: "Camp Creation Error",
+        description: "Failed to create health camp. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleVerificationComplete = () => {
-    loadData();
-    setCurrentView("main");
+  const handleVerificationComplete = (verificationId: string, status: 'approved' | 'rejected') => {
+    try {
+      const verification = pendingVerifications.find(v => v.id === verificationId);
+      if (!verification) {
+        throw new Error('Verification not found');
+      }
+      
+      // If approved, update the user's status
+      if (status === 'approved') {
+        if (verification.type === 'doctor') {
+          approveUser(verification.id, 'doctor');
+        } else if (verification.type === 'patient') {
+          approveUser(verification.id, 'patient');
+        }
+      } else {
+        // If rejected
+        if (verification.type === 'doctor') {
+          rejectUser(verification.id, 'doctor');
+        } else if (verification.type === 'patient') {
+          rejectUser(verification.id, 'patient');
+        }
+      }
+      
+      // Refresh data
+      loadData();
+      setCurrentView("main");
+      
+      toast({
+        title: `Verification ${status === 'approved' ? 'Approved' : 'Rejected'}`,
+        description: `User verification has been ${status}.`,
+      });
+    } catch (error) {
+      console.error('Error handling verification:', error);
+      toast({
+        title: "Verification Error",
+        description: "Failed to process verification. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const approveUser = (userId: string, userType: 'doctor' | 'patient') => {
-    if (userType === 'doctor') {
-      const success = storage.updateDoctorStatus(userId, 'verified', 'admin');
-      if (success) {
-        toast({
-          title: "Doctor Approved",
-          description: "Doctor has been verified and can now access the system.",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to approve doctor. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } else if (userType === 'patient') {
-      // For patients, we'll mark them as verified by updating their personal info
-      const patient = storage.getPatient(userId);
-      if (patient) {
-        storage.updatePatient(userId, { 
+    try {
+      if (userType === 'doctor') {
+        // Get the doctor first to make sure it exists
+        const doctor = storage.getDoctor(userId);
+        if (!doctor) {
+          throw new Error('Doctor not found');
+        }
+        
+        const success = storage.updateDoctorStatus(userId, 'verified', 'admin');
+        if (success) {
+          toast({
+            title: "Doctor Approved",
+            description: "Doctor has been verified and can now access the system.",
+          });
+        } else {
+          throw new Error('Failed to update doctor status');
+        }
+      } else if (userType === 'patient') {
+        // For patients, we'll mark them as verified by updating their personal info
+        const patient = storage.getPatient(userId);
+        if (!patient) {
+          throw new Error('Patient not found');
+        }
+        
+        // Create proper personalInfo object if it doesn't exist
+        const personalInfo = patient.personalInfo || {};
+        const updatedPatient = {
+          ...patient,
           personalInfo: { 
-            ...patient.personalInfo, 
-            name: patient.personalInfo.name || 'Verified Patient',
+            ...personalInfo, 
+            name: personalInfo.name || 'Verified Patient',
             verified: true 
-          } 
-        });
+          },
+          updatedAt: new Date().toISOString()
+        };
+        
+        storage.updatePatient(userId, updatedPatient);
         toast({
           title: "Patient Approved",
           description: "Patient has been verified and can access the system.",
         });
       }
+      
+      // Reload data to update the UI
+      loadData();
+    } catch (error) {
+      console.error('Error approving user:', error);
+      toast({
+        title: "Approval Error",
+        description: `Failed to approve ${userType}. Please try again.`,
+        variant: "destructive",
+      });
     }
-    
-    loadData();
   };
 
   const rejectUser = (userId: string, userType: 'doctor' | 'patient') => {
-    if (userType === 'doctor') {
-      const success = storage.updateDoctorStatus(userId, 'rejected', 'admin');
-      if (success) {
-        toast({
-          title: "Doctor Rejected",
-          description: "Doctor registration has been rejected.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to reject doctor. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } else if (userType === 'patient') {
-      // For patients, we can mark them as rejected
-      const patient = storage.getPatient(userId);
-      if (patient) {
-        storage.updatePatient(userId, { 
+    try {
+      if (userType === 'doctor') {
+        // Get the doctor first to make sure it exists
+        const doctor = storage.getDoctor(userId);
+        if (!doctor) {
+          throw new Error('Doctor not found');
+        }
+        
+        const success = storage.updateDoctorStatus(userId, 'rejected', 'admin');
+        if (success) {
+          toast({
+            title: "Doctor Rejected",
+            description: "Doctor registration has been rejected.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error('Failed to update doctor status');
+        }
+      } else if (userType === 'patient') {
+        // For patients, we can mark them as rejected
+        const patient = storage.getPatient(userId);
+        if (!patient) {
+          throw new Error('Patient not found');
+        }
+        
+        // Create proper personalInfo object if it doesn't exist
+        const personalInfo = patient.personalInfo || {};
+        const updatedPatient = {
+          ...patient,
           personalInfo: { 
-            ...patient.personalInfo, 
+            ...personalInfo, 
             verified: false,
             rejectionReason: 'Admin rejection'
-          } 
-        });
+          },
+          updatedAt: new Date().toISOString()
+        };
+        
+        storage.updatePatient(userId, updatedPatient);
         toast({
           title: "Patient Rejected",
           description: "Patient access has been rejected.",
           variant: "destructive",
         });
       }
+      
+      // Reload data to update the UI
+      loadData();
+    } catch (error) {
+      console.error('Error rejecting user:', error);
+      toast({
+        title: "Rejection Error",
+        description: `Failed to reject ${userType}. Please try again.`,
+        variant: "destructive",
+      });
     }
-    
-    loadData();
   };
 
   if (currentView === "createCamp") {
@@ -169,11 +308,11 @@ export default function AdminPortal() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
       {/* Header */}
-      <div className="border-b bg-card/50 backdrop-blur-sm">
+      <div className="border-b bg-gradient-to-r from-emerald-600/10 to-green-600/10 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center">
-            <Shield className="h-6 w-6 text-primary mr-2" />
-            <h1 className="text-xl font-semibold">Admin Portal</h1>
+            <Shield className="h-6 w-6 text-emerald-600 mr-2" />
+            <h1 className="text-xl font-semibold text-emerald-700">Admin Portal</h1>
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-muted-foreground">Admin User</span>
@@ -247,7 +386,11 @@ export default function AdminPortal() {
                         </Badge>
                       </div>
                       <div className="grid md:grid-cols-3 gap-4 text-sm text-muted-foreground mb-3">
-                        <div>📍 {camp.location}</div>
+                        <div>
+                          📍 {typeof camp.location === 'string' 
+                            ? camp.location 
+                            : `${camp.address || ''}, ${camp.city || ''}, ${camp.state || ''}`.replace(/^,\s+|,\s+$/g, '')}
+                        </div>
                         <div>📅 {camp.date}</div>
                         <div>👥 {camp.booked}/{camp.capacity} booked</div>
                       </div>

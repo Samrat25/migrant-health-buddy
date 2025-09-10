@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 interface BiometricVerificationProps {
-  onComplete: () => void;
+  onComplete: (verificationId: string, status: 'approved' | 'rejected') => void;
   onBack: () => void;
 }
 
@@ -27,39 +27,55 @@ export default function BiometricVerification({ onComplete, onBack }: BiometricV
   const [isVerifying, setIsVerifying] = useState(false);
   const { toast } = useToast();
 
-  // Mock pending verifications (in real app, this would come from localStorage or API)
-  const pendingVerifications = [
-    {
-      id: 1,
-      name: "Dr. Amit Patel",
-      type: "doctor",
-      registerId: "MH-12345",
-      licenseNumber: "LIC-123456789",
-      submittedDate: "2024-01-15",
-      documents: ["Medical License", "ID Proof", "Qualification Certificate"],
-      status: "pending"
-    },
-    {
-      id: 2,
-      name: "Sunita Devi",
-      type: "patient",
-      aadhaar: "****-****-1234",
-      phone: "+91 9876543210",
-      submittedDate: "2024-01-16",
-      documents: ["Aadhaar Card", "Health Survey"],
-      status: "pending"
-    },
-    {
-      id: 3,
-      name: "Dr. Sarah Johnson",
-      type: "doctor",
-      registerId: "DL-67890",
-      licenseNumber: "LIC-987654321",
-      submittedDate: "2024-01-17",
-      documents: ["Medical License", "Experience Certificate", "ID Proof"],
-      status: "pending"
+  // Get pending verifications from localStorage via the storage API
+  const [pendingVerifications, setPendingVerifications] = useState<any[]>([]);
+  
+  // Load pending verifications from storage
+  useEffect(() => {
+    try {
+      // Get patients and doctors from storage
+      const patients = JSON.parse(localStorage.getItem('patients') || '[]');
+      const doctors = JSON.parse(localStorage.getItem('doctors') || '[]');
+      
+      // Create pending verifications from doctors and patients
+      const pendingDocs = doctors.filter((d: any) => d.status === 'pending-verification');
+      const pendingPatients = patients.filter((p: any) => !p.personalInfo?.verified);
+      
+      const verifications = [
+        ...pendingDocs.map((doc: any) => ({
+          id: doc.id,
+          name: doc.fullName || 'Unnamed Doctor',
+          type: "doctor",
+          registerId: doc.registerId || 'No License',
+          licenseNumber: doc.licenseNumber || 'Unknown',
+          submittedDate: doc.registrationDate || doc.createdAt || new Date().toISOString(),
+          documents: doc.documents || ['Medical License'],
+          status: doc.status || 'pending-verification'
+        })),
+        ...pendingPatients.map((patient: any) => ({
+          id: patient.id,
+          name: patient.personalInfo?.name || 'Unknown',
+          type: "patient",
+          aadhaar: patient.aadhaarNumber ? 
+            (patient.aadhaarNumber.slice(0, 4) + '-****-' + patient.aadhaarNumber.slice(-4)) : 
+            'No Aadhaar',
+          phone: patient.mobileNumber || 'Unknown',
+          submittedDate: patient.createdAt || new Date().toISOString(),
+          documents: ['Aadhaar Card'],
+          status: 'pending'
+        }))
+      ];
+      
+      setPendingVerifications(verifications);
+    } catch (error) {
+      console.error('Error loading verification data:', error);
+      toast({
+        title: "Data Loading Error",
+        description: "There was a problem loading the verification data.",
+        variant: "destructive",
+      });
     }
-  ];
+  }, []);
 
   const startBiometricVerification = async (user: any) => {
     setCurrentVerification(user);
@@ -108,30 +124,44 @@ export default function BiometricVerification({ onComplete, onBack }: BiometricV
     setVerificationProgress(0);
   };
 
-  const updateVerificationStatus = (userId: number, status: string) => {
-    // In a real app, this would update the database
-    const verifications = JSON.parse(localStorage.getItem('verificationStatuses') || '{}');
-    verifications[userId] = {
-      status,
-      verifiedDate: new Date().toISOString(),
-      verifiedBy: 'admin'
-    };
-    localStorage.setItem('verificationStatuses', JSON.stringify(verifications));
+  const updateVerificationStatus = (userId: string, status: string) => {
+    try {
+      // Update the verification status in the storage system
+      const verification = pendingVerifications.find(v => v.id === userId);
+      if (!verification) {
+        throw new Error('Verification not found');
+      }
+      
+      // Call the onComplete callback with the appropriate status
+      if (status === 'verified' || status === 'approved') {
+        onComplete(userId, 'approved');
+      } else if (status === 'failed' || status === 'rejected') {
+        onComplete(userId, 'rejected');
+      }
+    } catch (error) {
+      console.error('Error updating verification status:', error);
+      toast({
+        title: "Verification Error",
+        description: "Failed to update verification status.",
+        variant: "destructive",
+      });
+    }
   };
 
   const manualApproval = (user: any, approved: boolean) => {
     const status = approved ? 'approved' : 'rejected';
-    updateVerificationStatus(user.id, status);
     
     toast({
       title: approved ? "Manually Approved" : "Manually Rejected",
       description: `${user.name} has been ${status}.`,
     });
+    
+    updateVerificationStatus(user.id, status);
   };
 
-  const getVerificationStatus = (userId: number) => {
-    const verifications = JSON.parse(localStorage.getItem('verificationStatuses') || '{}');
-    return verifications[userId]?.status || 'pending';
+  const getVerificationStatus = (userId: string) => {
+    const verification = pendingVerifications.find(v => v.id === userId);
+    return verification?.status || 'pending';
   };
 
   const getStatusColor = (status: string) => {
@@ -443,8 +473,8 @@ export default function BiometricVerification({ onComplete, onBack }: BiometricV
         </Card>
 
         <div className="flex justify-center">
-          <Button onClick={onComplete} size="lg">
-            Complete Verification Session
+          <Button onClick={() => onBack()} size="lg">
+            Return to Admin Dashboard
           </Button>
         </div>
       </div>
